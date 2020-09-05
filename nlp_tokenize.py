@@ -207,11 +207,6 @@ class Tokenizer:
                     word = ''
                     tokenized_block[w_i] = word
 
-                # strip out stop words or other filters here.
-                '''elif word in self.stopwords:
-                    word = ''
-                    tokenized_block[w_i] = word'''
-
                 elif word[-1] == '.':
                     tokenized_block[w_i] = word
                     sentence_end = w_i
@@ -223,10 +218,9 @@ class Tokenizer:
                         pass
                     else:
                         sent.insert(0, self.start_token)  # inserting sentence flags for start
-
-                        while len(sent) < pad_to_length - 1:
+                        sent.append(self.end_token)
+                        while len(sent) < pad_to_length:
                             sent.append(self.pad_token)
-
                         sent.append(self.end_token) # inserting sentence flags for stop
                         sentence_start = w_i + 1
                         tokenized_sentences.append(sent)
@@ -284,7 +278,7 @@ class Tokenizer:
         return tokenized_sentences, indexed_sentences
 
 
-    def tokenize_chunk(self, filename, pad_to_length = 0, build_luts = True, lexikos_object = None):
+    def tokenize_by_chunk(self, filename, pad_to_length = 0, build_luts = True, lexikos_object = None):
         '''Tokenizes by review or iterable block rather than by splitting into sentences
         :param filename: string, path to txt file of corpus to load
         :param pad_to_length: 0 or int, if int insert pad tokens up to the maximum length specified by
@@ -309,47 +303,31 @@ class Tokenizer:
         tokenized_final = []
 
         if tokenized_block != []:
-            sentence_start = 0
-            sentence_end = 0
             for w_i, word in enumerate(tokenized_block):
                 word = self.lemmatizer.lemmatize(word)
                 word = word.replace("'", "")
 
-                if len(word) < 2 and word != '.':
+                if word in self.stopwords:
                     word = ''
                     tokenized_block[w_i] = word
 
-                # strip out stop words or other filters here.
-                elif word in self.stopwords:
-                    word = ''
-                    tokenized_block[w_i] = word
-
-                elif word[-1] == '.':
-                    tokenized_block[w_i] = word
-                    sentence_end = w_i
-                    sent = tokenized_block[sentence_start: sentence_end]
-                    while sent.count(''):
-                        sent.remove('')
-
-                    if sent == []:
+                if w_i == len(tokenized_block-1):
+                    while tokenized_block.count(''):
+                        tokenized_block.remove('')
+                    if tokenized_block == []:
                         pass
                     else:
-                        sent.insert(0, self.start_token)  # inserting sentence flags for start
-
-                        while len(sent) < pad_to_length - 1:
-                            sent.append(self.pad_token)
-
-                        sent.append(self.end_token) # inserting sentence flags for stop
-                        sentence_start = w_i + 1
-                        tokenized_final.append(sent)
-
+                        tokenized_block.insert(0, self.start_token)
+                        tokenized_block.append(self.end_token)
+                        while len(tokenized_block) < pad_to_length:
+                            tokenized_block.append(self.pad_token)
+                        tokenized_final.append(tokenized_block)
                 else:
                     tokenized_block[w_i] = word
+
         else:
             raise NameError('file empty')
         indexed_sentences = []
-        #print(f'after tokenize{tokenized_final[:10]}')
-
 
         if self.resume:
             word_freq = FreqDist(itertools.chain(*tokenized_final))
@@ -445,8 +423,11 @@ class Tokenizer:
 if __name__ == '__main__':
 
     tokenizer = Tokenizer()
-    corpus, indexed_corpus = tokenizer.by_sent(filename = 'doriangray.txt', pad_to_length = 0, build_luts =
-    True)
+    #corpus, indexed_corpus = tokenizer.tokenize_by_sent(filename = 'doriangray.txt', pad_to_length = 0,
+    #                                                    build_luts = True)
+
+    corpus, indexed_corpus = tokenizer.tokenize_by_chunk(filename='doriangray.txt', pad_to_length=0,
+                                                        build_luts=True)
     w2i, i2w = tokenizer.get_luts()
     vocab, vocab_size = tokenizer.get_vocab()
     print(vocab_size, len(i2w))

@@ -5,16 +5,11 @@ import util
 import matplotlib.pyplot as plt
 import itertools
 import time
-import os
 
-import activation_functions as activation
 import loss_functions as loss
 
 import scipy.sparse as sp
 from collections import defaultdict
-from nltk import FreqDist
-from nltk import regexp_tokenize
-from nltk.stem import WordNetLemmatizer
 
 
 def corpus_list_to_array(corpus):
