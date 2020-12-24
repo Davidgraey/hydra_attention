@@ -146,10 +146,6 @@ class Tokenizer:
         #self.stopwords = {"a", "the", "to"}
 
         self.regex_pattern = r"([a-zA-z'-a-zA-Z]*)|\w+|\...|\..|\.|\!|\?|\-"
-        #"(?=\w+['])([a-zA-Z'a-zA-z]+)|\w+|\...|\..|\.|\!|\?|\-"
-        #"(?=\w+['-])([a-zA-Z'-a-zA-z]+)|\w+|\...|\..|\.|\!|\?"
-        # #'\w+|\...|\.|\!|\?'
-        #\w+|\...|\..|\.|\!|\?|
         self.start_token = '_START_'
         self.end_token = '_END_'
         self.pad_token = '_PAD_'
@@ -278,7 +274,7 @@ class Tokenizer:
         return tokenized_sentences, indexed_sentences
 
 
-    def tokenize_by_chunk(self, filename, pad_to_length = 0, build_luts = True, lexikos_object = None):
+    def tokenize_by_chunk(self, chunk_data, pad_to_length = 0, build_luts = True, lexikos_object = None):
         '''Tokenizes by review or iterable block rather than by splitting into sentences
         :param filename: string, path to txt file of corpus to load
         :param pad_to_length: 0 or int, if int insert pad tokens up to the maximum length specified by
@@ -287,10 +283,10 @@ class Tokenizer:
         :param lexikos_object: Lexikos object containing already existing vocab and LUT objects
         :return: returns the tokenized, lemmatized and cleaned corpus
         '''
-        self.regex_pattern = r"([a-z'A-Z]*)"
+        self.regex_pattern = r"([a-z'0-9A-Z]*)"
 
-        self.sentence_length = pad_to_length
-        tokenized_block = self.load_file(filename)
+        self.sentence_length = pad_to_length if pad_to_length > 0 else self.sentence_length
+
 
         if lexikos_object != None:
             #using Lexikon object, add to existing vocab
@@ -301,32 +297,46 @@ class Tokenizer:
             self.resume = False
 
         tokenized_final = []
+        for tokenized_block in chunk_data:
+            if tokenized_block != []:
+                length = len(tokenized_block)
+                for w_i, word in enumerate(tokenized_block):
+                    word = self.lemmatizer.lemmatize(word)
+                    word = word.replace("'", "")
 
-        if tokenized_block != []:
-            for w_i, word in enumerate(tokenized_block):
-                word = self.lemmatizer.lemmatize(word)
-                word = word.replace("'", "")
-
-                if word in self.stopwords:
-                    word = ''
-                    tokenized_block[w_i] = word
-
-                if w_i == len(tokenized_block-1):
-                    while tokenized_block.count(''):
-                        tokenized_block.remove('')
-                    if tokenized_block == []:
-                        pass
+                    if word in self.stopwords:
+                        word = ''
+                        tokenized_block[w_i] = word
                     else:
-                        tokenized_block.insert(0, self.start_token)
-                        tokenized_block.append(self.end_token)
-                        while len(tokenized_block) < pad_to_length:
-                            tokenized_block.append(self.pad_token)
-                        tokenized_final.append(tokenized_block)
-                else:
-                    tokenized_block[w_i] = word
+                        tokenized_block[w_i] = word
 
-        else:
-            raise NameError('file empty')
+                    #if we reach the end of the chunk
+                    if w_i + 1 == length:
+                        #while there are empty tokens, take them out until they're gone!
+                        while tokenized_block.count('') > 0:
+                            try:
+                                tokenized_block.remove('')
+                            except ValueError:
+                                break
+
+                        # if tokenized_block is empty (all words removed or other error), break out
+                        if tokenized_block == []:
+                            break
+
+                        #if there is content in tokenized_block and we're at the end...
+                        else:
+                            tokenized_block.insert(0, self.start_token)
+                            tokenized_block.append(self.end_token)
+
+                            #if we are padding to a specific length, append our pad_token
+                            while len(tokenized_block) < self.sentence_length:
+                                tokenized_block.append(self.pad_token)
+
+                        #append this block to our processed list of lists
+                        tokenized_final.append(tokenized_block)
+
+            else:
+                raise NameError('file empty')
         indexed_sentences = []
 
         if self.resume:
@@ -349,7 +359,6 @@ class Tokenizer:
             local_vocab = set(word_freq.most_common())
             self.vocab_size += len(local_vocab) + 4 #adding 4 for tokens
             print(f"Found {self.vocab_size} unique words")
-
 
             if self.index_to_word == []:
                 tokens = [self.start_token, self.end_token, self.pad_token, self.unknown_token]
@@ -397,7 +406,33 @@ class Tokenizer:
             raise FileNotFoundError('check the filename')
 
 
+    def load_csv(self, filename):
+        if os.path.exists(filename):
+            print(f'loading {filename}')
+            #np.read_csv...########TODO: read csv in; format to work with self.tokenize_chunk()
+            text = open(filename, 'r').read()
+            while '\n' in text:
+                text = text.replace('\n', ' ')
+            while '?' in text:
+                text = text.replace('?', '.')
+            while '!' in text:
+                text = text.replace('!', '.')
+            while '_' in text:
+                text = text.replace('_', ' ')
+            while '-' in text:
+                text = text.replace('-', ' ')
+
+            return regexp_tokenize(text = text.lower(),
+                                   pattern = self.regex_pattern,
+                                   gaps = False,
+                                   discard_empty = True)
+        else:
+            raise FileNotFoundError('check the filename')
+
     def find_longest_sent(self, corpus):
+        '''
+        :param
+        '''
         length = [len(sen) for sen in corpus]
         self.sentence_length = max(length) + 2 #adding two for start and stop tokens
         print('max L is', self.sentence_length)
@@ -418,16 +453,18 @@ class Tokenizer:
         '''
         return self.vocab, self.vocab_size
 
+    def __str__(self):
+        return f'vocab of {self.vocab_size}, '
 
 
 if __name__ == '__main__':
 
     tokenizer = Tokenizer()
-    #corpus, indexed_corpus = tokenizer.tokenize_by_sent(filename = 'doriangray.txt', pad_to_length = 0,
-    #                                                    build_luts = True)
+    corpus, indexed_corpus = tokenizer.tokenize_by_sent(filename = 'doriangray.txt', pad_to_length = 0,
+                                                        build_luts = True)
 
-    corpus, indexed_corpus = tokenizer.tokenize_by_chunk(filename='doriangray.txt', pad_to_length=0,
-                                                        build_luts=True)
+    #corpus, indexed_corpus = tokenizer.tokenize_by_chunk(filename='imdb_train.csv', pad_to_length=0,
+    #                                                    build_luts=True)
     w2i, i2w = tokenizer.get_luts()
     vocab, vocab_size = tokenizer.get_vocab()
     print(vocab_size, len(i2w))
@@ -445,3 +482,6 @@ if __name__ == '__main__':
     print(corpus[max_i])
 
     #array_corp = corpus_list_to_array(indexed_corpus)
+
+    #pandasdf
+    #pandasdf['length'] = pandasdf['text'].apply(len)

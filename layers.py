@@ -55,7 +55,7 @@ class Layer:
             outs = func.activation_dictionary[forced_activation](incoming_x @ self.weights[1:, :] + self.weights[0:1,
                                                                                                     :])
         else:
-            outs = func.activation_dictionary[self.activdation](incoming_x @ self.weights[1:, :] + self.weights[0:1, :])
+            outs = func.activation_dictionary[self.activation](incoming_x @ self.weights[1:, :] + self.weights[0:1, :])
             self.output = outs
         return outs
 
@@ -154,6 +154,32 @@ class DropoutLayer(Layer):
 
 
 class NormalizeLayer(Layer):
-    def __init__(self, layer_size, ):
+    def __init__(self):
         #super().__init__(ni = , no = , activation_type = , is_output = )
-        pass
+        self.squashing_factor = 0
+
+    def forward(self, incoming_x, training_now):
+
+    #normalize layer will normalize all values between 0 and 1; !!!record that squashing factor
+
+
+
+class AttentionLayer():
+    '''
+    Attention layer does not track inputs; since they are shared across heads, Keys Query and Value
+    '''
+    def __init__(self, ni, no, activation_type, is_output=False):
+        '''**********ARGUMENTS**********
+        :param ni: number of input units
+        :param no: number of output units
+        :param activation_type: string identifying activation type, 'linear', 'sigmoid', 'tanh', etc.
+        :param is_output: boolean flag designating if this is an output layer or hidden layer
+        '''
+        self.activation = activation_type
+        self.is_output = is_output
+        self.weights = weight_init[activation_type](ni, no)
+        self.shape = self.weights.shape
+
+        # these values will be rewritten or updated on each pass
+        self.output = 0.0
+        self.gradient = 0.0

@@ -23,7 +23,7 @@ class AttentionHead():
         Key - All of the encoder's hidden state vectors
         Value - All of the encoder's hidden state vectors
     '''
-    def __init__(self, vector_dimension, projected_dimension, pos, masked = False, dropout_percent = 0.1):
+    def __init__(self, vector_dimension, projected_dimension, position, masked = False, dropout_percent = 0.1):
         '''
         :param ni: Vector Dimension of embed layer - this will be the vector dimension from our embeding / number of
             heads used in our multi-headed attention
@@ -34,9 +34,12 @@ class AttentionHead():
         self.no = projected_dimension
         self.dropout_percent = dropout_percent
 
-        self.head_id = pos
+        self.head_id = position
 
         self.activation = 'linear'
+
+        #TODO: change from this layer strucutre to keep the persisent input X, and not copy inputs multiple times
+        # Refer to the drawing for residual connections
 
         self.query_layer = layers.Layer(self.ni, self.no, self.activation)
         self.key_layer = layers.Layer(self.ni, self.no, self.activation)
@@ -44,7 +47,7 @@ class AttentionHead():
 
         self.dropout = layers.DropoutLayer(self.ni, self.no, self.dropout_percent)
 
-        #TODO: add masking
+        # TODO: add masking
         if masked:
             self.mask = np.ma.masked_array()
 
@@ -52,8 +55,9 @@ class AttentionHead():
 
 
     def forward(self, incoming_x):
-        #incoming data should be (sentence length, projected_dimension)
-        n_sentences, n_tokens, vector_dimension = incoming_x.shape
+        # incoming data should be (sentence length, projected_dimension)
+        print('x shape into head is', incoming_x.shape)
+        n_sents, vector_dimension, projected_dimension = incoming_x.shape
         assert vector_dimension == self.ni
 
         Q = self.query_layer.forward(incoming_x)
@@ -126,23 +130,33 @@ class AttentionHead():
 class AttentionNeck:
     # multi-headed attention
     def __init__(self, num_heads, vector_dimension, projected_dimension, dropout=0.01):
+        '''
+        The attention "neck" is the connection structure around all multi-heads.
+        '''
         self.num_heads = num_heads  # 8
         self.vector_dimension = vector_dimension
         self.projected_dimension = projected_dimension
 
         self.activation = 'linear'
 
-        # each attention head is shape (vectordim (256), projecteddim(32))
+        # each attention head is shape (vectordim, projecteddim)
         self.heads = []
         pos = 0
         # TODO: look into async'ing or distributing the head processing?
+
         while len(self.heads) < self.num_heads:
-            self.heads.append(AttentionHead(self.vector_dimension, self.projected_dimension, position=pos, False,
-                                            dropout=dropout))
+            self.heads.append(AttentionHead(vector_dimension=self.vector_dimension,
+                                            projected_dimension=self.projected_dimension,
+                                            position=pos,
+                                            masked=False,
+                                            dropout_percent=dropout))
             pos += 1
 
         # neck - single projection of all concatenated attention head outputs
-        self.bottleneck = layers.Layer(projected_dimension * num_heads, projected_dimension, 'linear')
+        #TODO: figure out where the issue is with layer size in bottleneck - could need -1???
+        self.bottleneck = layers.Layer(ni=projected_dimension * num_heads,
+                                       no=projected_dimension,
+                                       activation_type=self.activation)
 
 
     def forward(self, incoming_x):
@@ -154,10 +168,10 @@ class AttentionNeck:
         # self.input = copy.copy(incoming_x
         for head in self.heads:
             head_outs.append(head.forward(incoming_x))
-        print(f'Hydra heads output {head_outs[0].shape}')
+        print(f'One Hydra head outputs {head_outs[0].shape}')
         head_outs = np.concatenate(head_outs, axis=0)
-        print(f'stacked in the neck the head outputs {head_outs.shape}')
-        neck_outs = self.bottleneck.forward(head_outs)
+        print(f'All Hydra Heads stacked outputs {head_outs.shape}')
+        neck_outs = self.bottleneck.forward(head_outs.T)
         print(f'swallowed through the bottleneck {neck_outs.shape}')
         self.output = neck_outs + incoming_x  # Layer Normalization step if on batches?
 
@@ -219,7 +233,10 @@ class HydraAttention:
         :param incoming_x:
         :return:
         '''
+        #n_sentences, n_tokens, vector_dimension = incoming_x.shape
+
         attn_out = self.attention_block.forward(incoming_x)
+        #print('attention_block output', attn_out.shape)
         for brain_layer in self.brain_layers:
             attn_out = brain_layer.forward(attn_out)
         self.output = attn_out
@@ -280,12 +297,20 @@ class HydraAttention:
 
 
 if __name__ == '__main__':
-    with open('vectorized_corpus.pkl', 'rb') as handle:
-        corpus = pickle.load(handle)
 
-    ni = 128
-    no = 64
+    #with open('vectorized_corpus.pkl', 'rb') as handle:
+    #    corpus = pickle.load(handle)
 
-    attention = AttentionHead(ni, no, dropout_percent = 0.2)
 
-    attention.forward()
+    x = np.random.uniform(-1, 1, (32, 32, 32))
+
+    hydra = HydraAttention( num_heads = 8,
+                            num_hiddens = 32,
+                            vector_dimension = 32,
+                            projected_dimension = 32,
+                            dropout = 0.01)
+
+
+    outs = hydra.forward(x)
+    #hydra.train(x, x,learning_rate_eta = 0.002, momentum_alpha = 0.002, epochs = 1 )
+    #x.shape

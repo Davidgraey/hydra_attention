@@ -1,7 +1,6 @@
 import numpy as np
-import pickle
+#import pickle
 import layers
-import util
 import matplotlib.pyplot as plt
 import itertools
 import time
@@ -10,6 +9,22 @@ import loss_functions as loss
 
 import scipy.sparse as sp
 from collections import defaultdict
+
+def cosine_similarity(u, v):
+    ''' also Euclidian Distance
+    u, v = word vectors for indiviudal words, output from our word2vec w2v.word_vec('input')
+    if highly similar, return is close to 1
+    if highly dissimilar, return is close to -1
+    '''
+    #dist = 0.0
+    dot = u @ v
+    # L2 norm is the length of the vector
+    norm_u = np.linalg.norm(u)
+    norm_v = np.linalg.norm(v)
+
+    cosine_theta = dot / (norm_u * norm_v)
+
+    return cosine_theta
 
 
 def corpus_list_to_array(corpus):
@@ -415,7 +430,7 @@ class WordEmbed:
             if w in input_words_set:
                 continue
 
-            cosine_sim = util.cosine_similarity(e_b - e_a, self.get_vector(w) - e_c)
+            cosine_sim = cosine_similarity(e_b - e_a, self.get_vector(w) - e_c)
             if cosine_sim > max_cosine_sim:
                 max_cosine_sim = cosine_sim
                 best_word = w
