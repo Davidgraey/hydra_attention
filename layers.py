@@ -153,6 +153,7 @@ class DropoutLayer(Layer):
         return f'{self.shape}, using Hinton Dropout'
 
 
+#TODO: Create Normalize Layer that can be Undone in backpass (hold 'sqhashing_factor')
 class NormalizeLayer(Layer):
     def __init__(self):
         #super().__init__(ni = , no = , activation_type = , is_output = )
@@ -163,7 +164,9 @@ class NormalizeLayer(Layer):
     #normalize layer will normalize all values between 0 and 1; !!!record that squashing factor
 
 
-
+#TODO: Create attention layer (KQV layer within a single head) that does NOT track inputs - these will be the same
+# across all heads - this layer will use a RESIDUAL_X from container / parent.  Complicated to figure out exactily
+# how to propigate through.
 class AttentionLayer():
     '''
     Attention layer does not track inputs; since they are shared across heads, Keys Query and Value

@@ -22,6 +22,11 @@ class AttentionHead():
         Query - the output of the decoder's attention
         Key - All of the encoder's hidden state vectors
         Value - All of the encoder's hidden state vectors
+
+    For Generation -
+        Next token prediction :
+            Masked
+
     '''
     def __init__(self, vector_dimension, projected_dimension, position, masked = False, dropout_percent = 0.1):
         '''
@@ -128,7 +133,10 @@ class AttentionHead():
 #------------------------------------------------------------------------------------------------------------
 
 class AttentionNeck:
-    # multi-headed attention
+    '''multi-headed attention
+    AttentionNeck is the container for the multi-headed attention and the concatination of all their outputs in
+    self.bottleneck.
+    '''
     def __init__(self, num_heads, vector_dimension, projected_dimension, dropout=0.01):
         '''
         The attention "neck" is the connection structure around all multi-heads.
@@ -142,7 +150,7 @@ class AttentionNeck:
         # each attention head is shape (vectordim, projecteddim)
         self.heads = []
         pos = 0
-        # TODO: look into async'ing or distributing the head processing?
+        # TODO: look into explicitly distributing the head processing?
 
         while len(self.heads) < self.num_heads:
             self.heads.append(AttentionHead(vector_dimension=self.vector_dimension,
@@ -209,7 +217,14 @@ class AttentionNeck:
 
 
 class HydraAttention:
-    #multi-headed attention
+    ''''
+    multi-headed attention
+    Hydra Attention is the top-level class that holds the AttentionNeck and brain_layers (dense nnet layers at the
+    end of the attention mechanism.
+    AttentionNeck is the wrapper that holds the multiheaded attention.
+    #TODO: Encoder / Decoder arcchitecture would take the place of the brain_layers
+    #TODO: Hold a persisting RESIDUAL_X within this class and use for residual connections within the attention heads and other residual connections (check drawing)
+    '''
     def __init__(self, num_heads, num_hiddens, vector_dimension, projected_dimension, dropout = 0.01):
 
         self.attention_block = AttentionNeck(num_heads, vector_dimension, projected_dimension, dropout)
@@ -226,6 +241,8 @@ class HydraAttention:
         self.brain_2 = layers.Layer(self.nhs, self.nhs, self.activation)
         self.brain_3 = layers.Layer(self.nhs, self.projected_dimension, 'linear', is_output = True)
         self.brain_layers = [self.brain_1, self.brain_2, self.brain_3]
+
+        self.RESIDUAL_X = np.array()
 
 
     def forward(self, incoming_x):
